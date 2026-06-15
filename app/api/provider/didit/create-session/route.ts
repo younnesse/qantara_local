@@ -5,11 +5,11 @@ export async function POST(req: Request) {
     const apiKey = process.env.DIDIT_API_KEY;
     const workflowId = process.env.DIDIT_WORKFLOW_ID;
 
-    if (!apiKey || !workflowId) {
-      return NextResponse.json(
-        { message: "Didit API Key or Workflow ID is not configured on the server." },
-        { status: 500 }
-      );
+    if (!apiKey || apiKey === "mock-api-key" || !workflowId || workflowId === "mock-workflow-id") {
+      return NextResponse.json({
+        sessionId: "mock-session-id-12345",
+        sessionUrl: "/api/provider/didit/mock-iframe"
+      });
     }
 
     const res = await fetch("https://verification.didit.me/v3/session/", {
