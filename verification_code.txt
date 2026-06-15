@@ -1,0 +1,4 @@
+Email: 0776531193
+Verification Code: 854108
+Sent At: 2026-06-11T14:13:29.361Z
+Status: Email failed, fallback active
