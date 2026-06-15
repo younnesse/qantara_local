@@ -62,27 +62,27 @@ export default function ProviderProfilePage() {
   const [professionalLoading, setProfessionalLoading] = useState(false)
   const [professionalUploadResult, setProfessionalUploadResult] = useState<any>(null)
 
-  // Yoti Sandbox IDV states
-  const [yotiSessionId, setYotiSessionId] = useState("")
-  const [yotiSessionToken, setYotiSessionToken] = useState("")
-  const [yotiLoading, setYotiLoading] = useState(false)
+  // Didit IDV states
+  const [diditSessionId, setDiditSessionId] = useState("")
+  const [diditSessionUrl, setDiditSessionUrl] = useState("")
+  const [diditLoading, setDiditLoading] = useState(false)
 
-  const startYotiSession = async () => {
-    setYotiLoading(true)
+  const startDiditSession = async () => {
+    setDiditLoading(true)
     try {
-      const res = await fetch("/api/provider/yoti/create-session", { method: "POST" })
+      const res = await fetch("/api/provider/didit/create-session", { method: "POST" })
       if (res.ok) {
         const data = await res.json()
-        setYotiSessionId(data.sessionId)
-        setYotiSessionToken(data.sessionToken)
+        setDiditSessionId(data.sessionId)
+        setDiditSessionUrl(data.sessionUrl)
       } else {
-        alert("Failed to initialize Yoti verification session. Please try again.")
+        alert("Failed to initialize Didit verification session. Please try again.")
       }
     } catch (err) {
       console.error(err)
-      alert("Error starting Yoti session.")
+      alert("Error starting Didit session.")
     } finally {
-      setYotiLoading(false)
+      setDiditLoading(false)
     }
   }
 
@@ -245,12 +245,12 @@ export default function ProviderProfilePage() {
     formData.append("userId", user.id);
 
     if (identityMethod === "yoti") {
-      if (!yotiSessionId) {
-        alert("Please complete Yoti verification first!");
+      if (!diditSessionId) {
+        alert("Please complete Didit verification first!");
         setIdentityLoading(false);
         return;
       }
-      formData.append("yotiSessionId", yotiSessionId);
+      formData.append("diditSessionId", diditSessionId);
     } else {
       if (!manualIdFile || !manualSelfieFile) {
         alert("Please select both ID Card and Selfie files!");
@@ -460,7 +460,7 @@ export default function ProviderProfilePage() {
                       setManualSelfieFile(null);
                       setManualSelfiePreview(null);
                       setIdentityUploadResult(null);
-                      startYotiSession();
+                      startDiditSession();
                     }
                   }}>
                     <DialogTrigger asChild>
@@ -486,14 +486,14 @@ export default function ProviderProfilePage() {
                               type="button"
                               onClick={() => {
                                 setIdentityMethod("yoti");
-                                startYotiSession();
+                                startDiditSession();
                               }}
                               className={cn(
                                 "flex-1 py-2 text-xs font-semibold rounded-lg transition-all",
                                 identityMethod === "yoti" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                               )}
                             >
-                              Yoti Sandbox (Auto)
+                              Didit Verification (Auto)
                             </button>
                             <button
                               type="button"
@@ -514,20 +514,30 @@ export default function ProviderProfilePage() {
                             <p className="text-xs text-muted-foreground text-left">
                               {t("verify.step2.prompt.yoti")}
                             </p>
-                            {yotiLoading ? (
+                            {diditLoading ? (
                               <div className="flex flex-col items-center justify-center py-12 space-y-3">
                                 <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                                <p className="text-xs text-muted-foreground">Initializing Yoti Sandbox...</p>
+                                <p className="text-xs text-muted-foreground">Initializing Didit Verification...</p>
                               </div>
-                            ) : yotiSessionId && yotiSessionToken ? (
+                            ) : diditSessionId && diditSessionUrl ? (
                               <div className="space-y-3">
                                 <div className="relative w-full aspect-[4/5] sm:aspect-[4/3] rounded-xl overflow-hidden border border-border bg-card">
                                   <iframe
-                                    src={`https://api.yoti.com/sandbox/idverify/v1/web/index.html?sessionID=${yotiSessionId}&sessionToken=${yotiSessionToken}`}
+                                    src={diditSessionUrl}
                                     allow="camera"
                                     className="w-full h-full border-none"
-                                    title="Yoti Sandbox"
+                                    title="Didit Verification"
                                   />
+                                </div>
+                                <div className="text-center my-1">
+                                  <a 
+                                    href={diditSessionUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="text-xs text-primary underline hover:text-primary/80"
+                                  >
+                                    Open verification in a new window
+                                  </a>
                                 </div>
                                 <Button
                                   onClick={handleIdentitySubmit}
@@ -539,8 +549,8 @@ export default function ProviderProfilePage() {
                               </div>
                             ) : (
                               <div className="p-4 text-center rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-                                Failed to load Yoti verification session.
-                                <Button size="sm" className="mt-3 block mx-auto" onClick={startYotiSession}>Retry</Button>
+                                Failed to load Didit verification session.
+                                <Button size="sm" className="mt-3 block mx-auto" onClick={startDiditSession}>Retry</Button>
                               </div>
                             )}
                           </div>

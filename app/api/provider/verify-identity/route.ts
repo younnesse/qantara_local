@@ -3,7 +3,6 @@ import { jwtVerify } from "jose"
 import { prisma } from "@/lib/prisma"
 import fs from "fs/promises"
 import path from "path"
-import { IDVClient } from "yoti"
 
 export async function POST(req: Request) {
   try {
@@ -11,7 +10,7 @@ export async function POST(req: Request) {
     let userId = formData.get("userId") as string | null
     const idCardFile = formData.get("idCard") as File | null
     const selfieBase64 = formData.get("selfie") as string | null
-    const yotiSessionId = formData.get("yotiSessionId") as string | null
+    const yotiSessionId = formData.get("diditSessionId") as string | null
 
     if (!userId) {
       // Fallback: Try to read userId from auth_token cookie
@@ -34,8 +33,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "User ID is required. Please log in again." }, { status: 400 })
     }
 
-    const hasYoti = !!yotiSessionId
-    const isMissingRequiredFields = hasYoti
+    const hasDidit = !!yotiSessionId
+    const isMissingRequiredFields = hasDidit
       ? false
       : (!idCardFile || !selfieBase64)
 
@@ -60,144 +59,79 @@ export async function POST(req: Request) {
     let selfieCleaned = ""
     let yotiName: string | null = null
 
-    if (hasYoti) {
-      const sdkId = process.env.YOTI_SANDBOX_CLIENT_SDK_ID;
-      const keyPath = process.env.YOTI_KEY_FILE_PATH;
-      const envPemKey = process.env.YOTI_PEM_KEY;
-
-      if (!sdkId || (!keyPath && !envPemKey)) {
-        return NextResponse.json({ message: "Yoti Sandbox is not configured on the server." }, { status: 500 });
+    if (hasDidit) {
+      const apiKey = process.env.DIDIT_API_KEY;
+      if (!apiKey) {
+        return NextResponse.json({ message: "Didit API Key is not configured on the server." }, { status: 500 });
       }
-
-      let pemKey: string;
-      if (envPemKey) {
-        pemKey = envPemKey.replace(/\\n/g, '\n');
-      } else {
-        const resolvedKeyPath = path.isAbsolute(keyPath!) ? keyPath! : path.join(process.cwd(), keyPath!);
-        pemKey = await fs.readFile(resolvedKeyPath, "utf8");
-      }
-
-      const yotiClient = new IDVClient(sdkId, pemKey, {
-        apiUrl: "https://api.yoti.com/sandbox/idverify/v1",
-      });
 
       try {
-        const session = await yotiClient.getSession(yotiSessionId!);
+        const diditRes = await fetch(`https://verification.didit.me/v3/session/${yotiSessionId}/decision/`, {
+          headers: {
+            "x-api-key": apiKey
+          }
+        });
+
+        if (!diditRes.ok) {
+          const errText = await diditRes.text();
+          console.error("Didit API decision retrieval failed:", errText);
+          return NextResponse.json({ message: `Didit API Error: ${diditRes.statusText || errText}` }, { status: 400 });
+        }
+
+        const session = await diditRes.json();
         
-        if (session.getState() !== "COMPLETED") {
-          return NextResponse.json({ message: `Yoti session is not completed. Current state: ${session.getState()}` }, { status: 400 });
+        if (session.status !== "Approved") {
+          return NextResponse.json({ message: `Didit session is not approved. Current status: ${session.status}` }, { status: 400 });
         }
 
-        const docChecks = session.getAuthenticityChecks() || [];
-        const livenessChecks = session.getLivenessChecks() || [];
-
-        const docApproved = docChecks.length > 0 && docChecks.every(c => c.getReport()?.getRecommendation()?.getValue() === "APPROVE");
-        const livenessApproved = livenessChecks.length > 0 && livenessChecks.every(c => c.getReport()?.getRecommendation()?.getValue() === "APPROVE");
-
-        if (!docApproved || !livenessApproved) {
-          return NextResponse.json({ 
-            message: `Yoti verification checks failed or were not approved. Document Authenticity: ${docApproved ? "APPROVED" : "FAILED"}, Liveness: ${livenessApproved ? "APPROVED" : "FAILED"}` 
-          }, { status: 400 });
+        const idDocs = session.id_verifications || [];
+        if (idDocs.length === 0) {
+          return NextResponse.json({ message: "No identity documents found in the Didit session." }, { status: 400 });
         }
 
-        const resources = session.getResources() as any;
-        const docDocs = resources.getIdDocuments() || [];
-        if (docDocs.length === 0) {
-          return NextResponse.json({ message: "No identity documents found in the Yoti session." }, { status: 400 });
+        const primaryDoc = idDocs[0];
+        const frontImageUrl = primaryDoc.front_image;
+        const portraitImageUrl = primaryDoc.portrait_image || primaryDoc.front_image;
+
+        if (!frontImageUrl) {
+          return NextResponse.json({ message: "Document image is not available in Didit session." }, { status: 400 });
         }
 
-        const primaryDoc = docDocs[0] as any;
-        const pages = primaryDoc.getPages() || [];
-        if (pages.length === 0) {
-          return NextResponse.json({ message: "Government ID document image is not available in Yoti session." }, { status: 400 });
+        // Download front image
+        const idCardRes = await fetch(frontImageUrl);
+        if (!idCardRes.ok) {
+          return NextResponse.json({ message: "Failed to retrieve document image from Didit." }, { status: 400 });
         }
-
-        const firstPage = pages[0] as any;
-        const idMediaObj = firstPage.getMedia ? firstPage.getMedia() : (firstPage.getImage ? firstPage.getImage().getMedia() : null);
-        if (!idMediaObj) {
-          return NextResponse.json({ message: "Government ID document image is not available in Yoti session." }, { status: 400 });
-        }
-
-        const idMediaId = idMediaObj.getId();
-        const idMedia = await yotiClient.getMediaContent(yotiSessionId!, idMediaId) as any;
-        if (!idMedia) {
-          return NextResponse.json({ message: "Failed to retrieve Government ID document image content from Yoti." }, { status: 400 });
-        }
-        idCardBuffer = idMedia.getContent();
+        idCardBuffer = Buffer.from(await idCardRes.arrayBuffer());
         
-        const mime = idMedia.getMimeType();
-        if (mime === "image/png") idCardExt = ".png";
-        else if (mime === "image/gif") idCardExt = ".gif";
+        if (frontImageUrl.includes(".png")) idCardExt = ".png";
+        else if (frontImageUrl.includes(".gif")) idCardExt = ".gif";
         else idCardExt = ".jpg";
 
-        let selfieMediaId = "";
-        
-        // 1. Try Zoom liveness
-        const zoomLiveness = resources.getZoomLivenessResources ? resources.getZoomLivenessResources() : [];
-        if (zoomLiveness && zoomLiveness.length > 0) {
-          const frames = zoomLiveness[0].getFrames ? zoomLiveness[0].getFrames() : [];
-          if (frames && frames.length > 0) {
-            const frame = frames[0] as any;
-            if (frame.getFrame && frame.getFrame()) {
-              selfieMediaId = frame.getFrame().getMedia().getId();
-            } else if (frame.getMedia && frame.getMedia()) {
-              selfieMediaId = frame.getMedia().getId();
-            }
+        // Download portrait image (selfie)
+        if (portraitImageUrl) {
+          const selfieRes = await fetch(portraitImageUrl);
+          if (selfieRes.ok) {
+            selfieBuffer = Buffer.from(await selfieRes.arrayBuffer());
           }
         }
         
-        // 2. Try static liveness
-        if (!selfieMediaId) {
-          const staticLiveness = resources.getStaticLivenessResources ? resources.getStaticLivenessResources() : [];
-          if (staticLiveness && staticLiveness.length > 0) {
-            const image = staticLiveness[0].getImage ? staticLiveness[0].getImage() : null;
-            if (image && image.getMedia && image.getMedia()) {
-              selfieMediaId = image.getMedia().getId();
-            }
-          }
+        if (!selfieBuffer!) {
+          selfieBuffer = idCardBuffer;
         }
-        
-        // 3. Fallback to portrait
-        if (!selfieMediaId && primaryDoc.getPortrait) {
-          const portrait = primaryDoc.getPortrait();
-          if (portrait && portrait.getMedia && portrait.getMedia()) {
-            selfieMediaId = portrait.getMedia().getId();
-          }
-        }
-
-        if (!selfieMediaId) {
-          return NextResponse.json({ message: "Liveness portrait image is not available in Yoti session." }, { status: 400 });
-        }
-
-        const selfieMedia = await yotiClient.getMediaContent(yotiSessionId!, selfieMediaId) as any;
-        if (!selfieMedia) {
-          return NextResponse.json({ message: "Failed to retrieve liveness portrait image content from Yoti." }, { status: 400 });
-        }
-        selfieBuffer = selfieMedia.getContent();
 
         aiFaceMatch = true;
         aiNameMatch = true;
-        aiAnalysisMessage = `Successfully verified via Yoti IDV Session. Document check: approved. Liveness check: approved.`;
 
-        try {
-          const docFields = primaryDoc.getDocumentFields() as any;
-          if (docFields) {
-            if (typeof docFields.getFullName === "function") {
-              yotiName = docFields.getFullName() || "";
-            } else if (docFields.fullName) {
-              yotiName = docFields.fullName;
-            }
-          }
-        } catch (e) {
-          console.warn("Could not retrieve document fields from Yoti:", e);
-        }
-        if (yotiName) {
-          aiAnalysisMessage += ` Extracted Name from Yoti ID: "${yotiName}".`;
-        }
+        const firstName = primaryDoc.first_name || "";
+        const lastName = primaryDoc.last_name || "";
+        yotiName = `${firstName} ${lastName}`.trim();
 
-      } catch (yotiError: any) {
-        console.error("Yoti Session Retrieval Error:", yotiError);
-        return NextResponse.json({ message: `Failed to retrieve Yoti session results: ${yotiError.message || yotiError}` }, { status: 400 });
+        aiAnalysisMessage = `Successfully verified via Didit IDV Session. Status: Approved. Extracted Name: "${yotiName}".`;
+
+      } catch (diditError: any) {
+        console.error("Didit Session Retrieval Error:", diditError);
+        return NextResponse.json({ message: `Failed to retrieve Didit session results: ${diditError.message || diditError}` }, { status: 400 });
       }
 
     } else {
@@ -220,8 +154,8 @@ export async function POST(req: Request) {
     const idCardUrl = `/uploads/${userId}_id${idCardExt}`
     const selfieUrl = `/uploads/${userId}_selfie.jpg`
 
-    await fs.writeFile(path.join(uploadsDir, `${userId}_id${idCardExt}`), idCardBuffer)
-    await fs.writeFile(path.join(uploadsDir, `${userId}_selfie.jpg`), selfieBuffer)
+    await fs.writeFile(path.join(uploadsDir, `${userId}_id${idCardExt}`), idCardBuffer!)
+    await fs.writeFile(path.join(uploadsDir, `${userId}_selfie.jpg`), selfieBuffer!)
 
     // Check professional status of the provider.
     // If they have completed professional verification already, set certificateStatus to VALID.
@@ -234,8 +168,8 @@ export async function POST(req: Request) {
       isProfessionalOk = provider.anaeCardStatus === "VERIFIED"
     }
 
-    // Yoti can auto-approve identity, manual submits as PENDING
-    const identityStatus = hasYoti ? "APPROVED" : "PENDING"
+    // Didit can auto-approve identity, manual submits as PENDING
+    const identityStatus = hasDidit ? "APPROVED" : "PENDING"
     const overallStatus = (identityStatus === "APPROVED" && isProfessionalOk) ? "VALID" : "PENDING"
 
     await prisma.provider.update({
@@ -259,7 +193,7 @@ export async function POST(req: Request) {
       await sendTelegramNotification(
         `👤 <b>[Identity Verification Submitted]</b>\n` +
         `<b>Provider:</b> ${provider.name || "Unknown"} (ID: <code>${userId}</code>)\n` +
-        `<b>Mode:</b> ${hasYoti ? "Yoti Sandbox IDV (Auto-approved)" : "Manual Upload (Pending)"}\n` +
+        `<b>Mode:</b> ${hasDidit ? "Didit IDV (Auto-approved)" : "Manual Upload (Pending)"}\n` +
         `<b>AI message:</b> <i>${aiAnalysisMessage}</i>\n` +
         `<b>Time:</b> ${new Date().toLocaleString()}`
       )
@@ -269,7 +203,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: hasYoti ? "Identity verified successfully." : "Identity documents submitted for admin review.",
+      message: hasDidit ? "Identity verified successfully." : "Identity documents submitted for admin review.",
       identityStatus,
       overallStatus
     })
