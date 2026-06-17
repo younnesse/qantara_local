@@ -10,7 +10,7 @@ export async function checkAndUpdateDiditStatus(userId: string, yotiSessionId: s
 
   // If it's the mock session, simulate approval immediately
   if (yotiSessionId === "mock-session-id-12345") {
-    const yotiName = "Amina Saidi";
+    const verifiedName = "Amina Saidi";
     const aiFaceMatch = true;
     const aiNameMatch = true;
     const idCardExt = ".jpg";
@@ -27,7 +27,7 @@ export async function checkAndUpdateDiditStatus(userId: string, yotiSessionId: s
       selfieBuffer = Buffer.from("");
     }
 
-    const aiAnalysisMessage = `Successfully verified via Didit Mock Sandbox. Status: Approved. Extracted Name: "${yotiName}".`;
+    const aiAnalysisMessage = `Successfully verified via Didit Mock Sandbox. Status: Approved. Extracted Name: "${verifiedName}".`;
     
     // Save files
     const uploadsDir = path.join(process.cwd(), "public", "uploads")
@@ -61,7 +61,7 @@ export async function checkAndUpdateDiditStatus(userId: string, yotiSessionId: s
         aiFaceMatch,
         aiNameMatch,
         aiAnalysisMessage,
-        yotiName,
+        verifiedName,
         verificationSubmittedAt: new Date()
       }
     })
@@ -118,8 +118,8 @@ export async function checkAndUpdateDiditStatus(userId: string, yotiSessionId: s
 
     const firstName = primaryDoc.first_name || "";
     const lastName = primaryDoc.last_name || "";
-    const yotiName = `${firstName} ${lastName}`.trim();
-    const aiAnalysisMessage = `Successfully verified via Didit IDV Session. Status: Approved. Extracted Name: "${yotiName}".`;
+    const verifiedName = `${firstName} ${lastName}`.trim();
+    const aiAnalysisMessage = `Successfully verified via Didit IDV Session. Status: Approved. Extracted Name: "${verifiedName}".`;
 
     // Save files
     const uploadsDir = path.join(process.cwd(), "public", "uploads")
@@ -152,7 +152,7 @@ export async function checkAndUpdateDiditStatus(userId: string, yotiSessionId: s
         aiFaceMatch: true,
         aiNameMatch: true,
         aiAnalysisMessage,
-        yotiName,
+        verifiedName,
         verificationSubmittedAt: new Date()
       }
     })

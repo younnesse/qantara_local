@@ -187,21 +187,21 @@ export async function POST(req: Request) {
         aiNameMatch = true;
         aiAnalysisMessage = `Successfully verified via Yoti IDV Session. Document check: approved. Liveness check: approved.`;
 
-        let yotiName = "";
+        let verifiedName = "";
         try {
           const docFields = primaryDoc.getDocumentFields() as any;
           if (docFields) {
             if (typeof docFields.getFullName === "function") {
-              yotiName = docFields.getFullName() || "";
+              verifiedName = docFields.getFullName() || "";
             } else if (docFields.fullName) {
-              yotiName = docFields.fullName;
+              verifiedName = docFields.fullName;
             }
           }
         } catch (e) {
           console.warn("Could not retrieve document fields from Yoti:", e);
         }
-        if (yotiName) {
-          aiAnalysisMessage += ` Extracted Name from Yoti ID: "${yotiName}". Matches registry holder: "${certRecord.holderName}".`;
+        if (verifiedName) {
+          aiAnalysisMessage += ` Extracted Name from Yoti ID: "${verifiedName}". Matches registry holder: "${certRecord.holderName}".`;
         }
 
       } catch (yotiError: any) {

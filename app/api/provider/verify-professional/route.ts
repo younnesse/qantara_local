@@ -105,7 +105,7 @@ export async function POST(req: Request) {
           extractedNumber = lmv3Data.extracted_data.ID || ""
 
           // Compare name on card with Yoti-extracted name, or provider's profile name if Yoti not used
-          const targetCompareName = (provider.yotiName || provider.name || "").trim().toLowerCase()
+          const targetCompareName = (provider.verifiedName || provider.name || "").trim().toLowerCase()
           const cardName = extractedFullName.trim().toLowerCase()
           
           if (targetCompareName && cardName) {

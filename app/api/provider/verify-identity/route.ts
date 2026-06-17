@@ -82,7 +82,7 @@ export async function POST(req: Request) {
           overallStatus: updatedProvider.certificateStatus
         })
       } else {
-        // Still pending/in-review. Save the session ID in yotiName and set status to PENDING.
+        // Still pending/in-review. Save the session ID in verifiedName and set status to PENDING.
         const identityStatus = "PENDING"
         const overallStatus = "PENDING"
 
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
             identityStatus,
             certificateStatus: overallStatus,
             aiAnalysisMessage: "Didit verification is in review.",
-            yotiName: yotiSessionId, // Store the session ID here to poll later
+            verifiedName: yotiSessionId, // Store the session ID here to poll later
             verificationSubmittedAt: new Date()
           }
         })

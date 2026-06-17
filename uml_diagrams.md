@@ -101,7 +101,7 @@ classDiagram
         +String selfieImage
         +String certificateImage
         +String certificateId
-        +String yotiName // verifiedName
+        +String verifiedName
         +DateTime verificationSubmittedAt
         +Boolean aiFaceMatch
         +Boolean aiNameMatch
@@ -237,7 +237,7 @@ sequenceDiagram
     Didit-->>BE: 200 OK (status: "In Review")
     
     note over BE: Grace period kicks in: backend does not fail
-    BE->>DB: Update Provider (identityStatus="PENDING", yotiName=diditSessionId)
+    BE->>DB: Update Provider (identityStatus="PENDING", verifiedName=diditSessionId)
     BE-->>FE: 200 OK (success=true, identityStatus="PENDING")
     FE->>FE: Render disabled "Verification in Review..." button
 
@@ -246,14 +246,14 @@ sequenceDiagram
     Provider->>FE: Visits Profile Page
     FE->>BE: GET /api/providers/{providerId}
     
-    note over BE: Backend detects identityStatus="PENDING" & yotiName contains Session ID
+    note over BE: Backend detects identityStatus="PENDING" & verifiedName contains Session ID
     BE->>Didit: GET /v3/session/{sessionId}/decision/
     Didit-->>BE: 200 OK (status: "Approved", first_name, last_name, front_image, portrait_image)
     
     BE->>Didit: Download front_image & portrait_image files
     Didit-->>BE: Returns binary files
     BE->>BE: Write files to public/uploads/
-    BE->>DB: Update Provider (identityStatus="APPROVED", yotiName="First Last", idCardImage, selfieImage)
+    BE->>DB: Update Provider (identityStatus="APPROVED", verifiedName="First Last", idCardImage, selfieImage)
     BE-->>FE: 200 OK (provider record updated)
     FE->>FE: Render green "Verified" Badge
 ```
@@ -298,8 +298,8 @@ sequenceDiagram
     end
     
     %% Cross-Matching
-    note over BE: Compare extracted name with Didit-verified name (yotiName)
-    BE->>BE: Check word inclusion between extracted name & yotiName (Min 2 matches)
+    note over BE: Compare extracted name with Didit-verified name (verifiedName)
+    BE->>BE: Check word inclusion between extracted name & verifiedName (Min 2 matches)
     
     alt Name matches and verification is successful
         BE->>AppDB: Update Provider (licenseStatus/cnamCardStatus/anaeCardStatus="VERIFIED", certificateStatus="PENDING")

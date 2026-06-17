@@ -42,7 +42,7 @@ model Provider {
   certificateIdHash  String?
   extractedFullName  String?
   extractedDate      String?
-  yotiName           String?
+  verifiedName       String?
   
   idCardImage             String?
   selfieImage             String?

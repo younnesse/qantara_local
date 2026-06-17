@@ -68,12 +68,12 @@ export async function GET(
     }
 
     // Lazy check Didit status for the owner if currently PENDING
-    if (isOwner && providerData.identityStatus === "PENDING" && providerData.yotiName) {
-      const isSessionId = providerData.yotiName.includes("-") || providerData.yotiName.startsWith("mock-");
+    if (isOwner && providerData.identityStatus === "PENDING" && providerData.verifiedName) {
+      const isSessionId = providerData.verifiedName.includes("-") || providerData.verifiedName.startsWith("mock-");
       if (isSessionId) {
         try {
           const { checkAndUpdateDiditStatus } = await import("@/lib/didit");
-          const updated = await checkAndUpdateDiditStatus(id, providerData.yotiName);
+          const updated = await checkAndUpdateDiditStatus(id, providerData.verifiedName);
           if (updated) {
             const reloaded = await prisma.provider.findUnique({
               where: { id },
