@@ -132,14 +132,37 @@ qantara/
 | certificateIdHash | String? | Hash bcrypt du N° de certificat |
 | extractedFullName | String? | Nom extrait par l'IA |
 | extractedDate | String? | Date extraite par l'IA |
+| verifiedName | String? | Nom vérifié par l'IDV (Didit) ou ID de session en review |
 | idCardImage | String? | Image de la carte d'identité |
 | selfieImage | String? | Selfie du prestataire |
-| certificateImage | String? | Image du certificat professionnel |
+| certificateImage | String? | Image du certificat/diplôme général |
 | certificateId | String? | Numéro ou identifiant du certificat |
 | verificationSubmittedAt | DateTime? | Date de soumission de la vérification |
 | aiFaceMatch | Boolean? | Résultat de comparaison de visage par IA |
 | aiNameMatch | Boolean? | Résultat de comparaison de nom par IA |
 | aiAnalysisMessage | String? | Détails de l'analyse IA de vérification |
+| professionalCategoryId | String? | FK vers ProfessionalCategory |
+| regulatoryBodyId | String? | FK vers RegulatoryBody (Professions Libérales) |
+| licenseNumber | String? | Numéro d'inscription au tableau / ordre |
+| licenseDocumentUrl | String? | URL du certificat/carte de licence professionnelle |
+| licenseVerifiedAt | DateTime? | Date de vérification de la licence |
+| licenseStatus | String | Statut de licence ("PENDING", "VERIFIED", "REJECTED", "EXPIRED") |
+| licenseVerifiedBy | String? | Agent de vérification ("GEMINI", "MANUAL", "API") |
+| licenseRejectionReason | String? | Motif si la licence est rejetée |
+| tradeId | String? | FK vers Trade (Artisans) |
+| cnamCardNumber | String? | Numéro de Carte d'Artisan CNAM |
+| cnamCardDocumentUrl | String? | URL de la carte CNAM uploadée |
+| cnamCardVerifiedAt | DateTime? | Date de validation de la carte CNAM |
+| cnamCardStatus | String | Statut de la carte CNAM ("PENDING", "VERIFIED", etc.) |
+| cnamCardVerifiedBy | String? | Validateur de la carte CNAM |
+| cnamCardRejectionReason | String? | Motif si rejeté |
+| autoEntrepreneurActivityId | String? | FK vers AutoEntrepreneurActivity |
+| anaeCardNumber | String? | Numéro de Carte d'Auto-Entrepreneur ANAE |
+| anaeCardDocumentUrl | String? | URL de la carte ANAE uploadée |
+| anaeCardVerifiedAt | DateTime? | Date de validation de la carte ANAE |
+| anaeCardStatus | String | Statut de la carte ANAE ("PENDING", "VERIFIED", etc.) |
+| anaeCardVerifiedBy | String? | Validateur de la carte ANAE |
+| anaeCardRejectionReason | String? | Motif si rejeté |
 | title | String? | Titre professionnel |
 | category | String? | Catégorie(s) : doctors, programmer, translator |
 | bio | String? | Biographie |
@@ -965,6 +988,7 @@ export async function POST(req: Request) {
           certificateIdHash: extractedIdHash,
           extractedFullName: data.extracted_data?.FULL_NAME || null,
           extractedDate: data.extracted_data?.DATE || null,
+          verifiedName: null, // Initialisation pour le processus Didit
         },
       });
     }
@@ -990,3 +1014,70 @@ export async function POST(req: Request) {
 * **Précision spatiale :** LayoutLMv3 intègre les positions exactes 2D des mots (bounding boxes), ce qui lui permet d'analyser la structure d'un tableau ou l'en-tête d'un certificat bien plus précisément qu'un modèle de vision multimodal classique (comme LLaVA) qui traite l'image de manière séquentielle globale.
 * **Rapidité :** La version de base de LayoutLMv3 est beaucoup plus légère (environ 500 Mo) que les grands modèles de vision (LLaVA-7B fait ~4,5 Go), permettant des temps de réponse d'OCR et d'extraction de moins de 2 secondes sur un CPU moderne ou une petite carte graphique standard.
 * **Sécurité locale :** Aucune clé API externe n'est requise et aucun flux de données n'est partagé en dehors de votre serveur local.
+
+---
+
+## 16. Intégration de l'Identité avec Didit (IDV)
+
+Après avoir retiré Yoti Sandbox, la plateforme utilise **Didit IDV** (Identity Verification) pour automatiser la vérification d'identité par pièce d'identité officielle et comparaison de selfie liveness.
+
+### 16.1 Processus d'intégration
+1. **Initialisation de session (`POST /api/provider/didit/create-session`)** :
+   - Le serveur contacte Didit API (`POST https://verification.didit.me/v3/session/`) avec le workflow ID configuré.
+   - Retourne l'URL de session (`sessionUrl`) et le code unique (`sessionId`).
+2. **Interface Client (Iframe/Nouvel Onglet)** :
+   - Le frontend intègre le flux Didit dans une caméra-iframe sécurisée ou fournit un lien externe direct pour ouvrir la vérification sur mobile.
+3. **Récupération des résultats (`POST /api/provider/verify-identity`)** :
+   - Lorsque le prestataire confirme avoir terminé, le serveur interroge la décision Didit via `GET https://verification.didit.me/v3/session/{sessionId}/decision/`.
+   - Si la décision est `"Approved"`, le serveur extrait le prénom et le nom du document vérifié, télécharge les photos d'identité (`front_image` et `portrait_image` depuis les URLs signées temporaires de Didit) et met à jour le statut dans la base de données.
+   - Le nom extrait est sauvegardé dans l'attribut `verifiedName` pour la comparaison ultérieure avec la carte professionnelle.
+
+---
+
+## 17. Système Hybride de Vérification Professionnelle & QR Code (FastAPI + Pyzbar)
+
+Afin d'offrir une flexibilité maximale, le système Next.js oriente les prestataires vers des canaux d'audit IA distincts selon leur catégorie professionnelle :
+
+```
+                                  Catégorie ?
+                                 /          \
+            (Artisan / Auto-Entrepreneur)     (Professions Libérales)
+                           /                           \
+                  FastAPI /verify-card-qr           FastAPI /verify
+                       /                                   \
+             [Image Preprocessing]                   [LayoutLMv3 OCR]
+            - Grayscale, Gaussian Blur                      |
+            - Adaptive Thresholding                 - Extraction Nom/ID
+                       |                                    |
+            [pyzbar QR Code Decoding]                       |
+                       |                                    |
+             - Extraction du Nom                            |
+                       \                                   /
+                        \                                 /
+                   Match avec Didit Name (verifiedName) ? (Min. 2 mots)
+                                      |
+                     [Database Update & Admin Review]
+```
+
+### 17.1 Canal 1 : Professions Libérales (LayoutLMv3 / Gemini)
+- Les prestataires soumettent leurs diplômes ou licences ordinales.
+- Le document est analysé via LayoutLMv3 (local) ou Gemini 2.5 Flash (production) pour en extraire le nom du titulaire, le numéro de licence et la date.
+
+### 17.2 Canal 2 : Artisans (CNAM) & Auto-Entrepreneurs (ANAE) (QR Code + pyzbar)
+- Les cartes professionnelles CNAM et ANAE disposent de codes QR officiels.
+- L'image de la carte est envoyée à l'endpoint dédié de notre serveur Python : `POST /verify-card-qr`.
+- **Pipeline de prétraitement d'image (OpenCV)** :
+  1. **Grayscale** : Conversion de l'image en nuances de gris pour éliminer la chromaticité.
+  2. **Gaussian Blur** : Lissage pour éliminer le bruit haute-fréquence.
+  3. **Adaptive Thresholding** : Seuillage adaptatif pour obtenir une image binaire contrastée, particulièrement efficace contre les ombres et variations de luminosité des photos prises sur mobile.
+- **Détection QR & Fallbacks (pyzbar)** :
+  - Le système tente de localiser et décoder le QR code sur l'image binarisée.
+  - En cas d'échec (seuillage trop agressif), il effectue successivement des tentatives de repli sur l'image en nuances de gris brute, sur l'image floutée, et sur chacun des canaux BGR individuels.
+- **Extracteur de Données** :
+  - Le texte décodé du QR est nettoyé et analysé (gestion des formats bruts, clé-valeur textuels, ou chaînes JSON).
+  - Retourne les données extraites au backend.
+
+### 17.3 Algorithme de Correspondance de Noms (Name Matcher)
+- Pour éviter les rejets injustifiés dus aux fautes de frappe ou à l'ordre des prénoms/noms (ex. *Amina Saidi* vs. *Saidi Amina*), le backend effectue un recoupement souple des mots.
+- Divise les deux chaînes (`verifiedName` de Didit et le nom extrait du document) en jetons textuels normalisés (minuscules, sans accents).
+- La validation n'est acceptée que si **au moins 2 mots uniques** correspondent entre les deux sources.
