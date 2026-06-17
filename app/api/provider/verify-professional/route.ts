@@ -85,7 +85,10 @@ export async function POST(req: Request) {
       const fileBlob = new Blob([certBuffer], { type: certificateFile.type || "image/jpeg" })
       localFormData.append("file", fileBlob, certificateFile.name || "cert.jpg")
 
-      const lmv3Response = await fetch("http://localhost:8000/verify-certificate", {
+      const isQrPath = categoryRecord.name === "artisan" || categoryRecord.name === "auto_entrepreneur"
+      const apiPath = isQrPath ? "verify-card-qr" : "verify-certificate"
+
+      const lmv3Response = await fetch(`http://localhost:8000/${apiPath}`, {
         method: "POST",
         body: localFormData
       })
