@@ -758,24 +758,24 @@ Le processus de vérification de certificat pour les prestataires de services es
 
 ## 14. Intégration d'un Modèle Local (Self-Hosted)
 
-Si vous souhaitez héberger votre propre modèle d'intelligence artificielle localement pour assurer la vérification des certificats hors-ligne ou pour des raisons de souveraineté des données, vous pouvez remplacer l'API Gemini par un modèle de vision local.
+Si vous souhaitez héberger votre propre modèle d'intelligence artificielle localement pour assurer la vérification des certificats hors-ligne ou pour des raisons de souveraineté des données, vous pouvez remplacer l'API Gemini par un modèle local.
 
 ### 14.1 Prérequis
-Les certificats étant des documents visuels, vous devez utiliser un modèle local doté de capacités de **Vision-Langage (VLM)** capable d'effectuer de la lecture de texte (OCR) et de l'analyse d'images.
+Pour exécuter la vérification locale, vous devez utiliser un modèle local performant supportant le formatage structuré JSON.
 
 **Modèles recommandés :**
-* `llama3-vision` (Excellent pour l'extraction de données)
-* `llava` (Modèle de vision open-source de référence, versions 7b ou 13b)
-* `qwen2-vl` (Très performant pour la lecture de documents textuels multilingues)
+* `gemma2` (Modèle Google de prédilection utilisé par notre plateforme pour le traitement textuel local)
+* `llama3-vision` (Pour l'extraction de données visuelles)
+* `llava` (Modèle de vision open-source de référence)
 
 ### 14.2 Installation de l'infrastructure locale (Ollama)
 Le moyen le plus simple d'exécuter un modèle local est d'utiliser **Ollama** :
 
 1. Téléchargez et installez Ollama depuis [ollama.com](https://ollama.com).
 2. Lancez le serveur local Ollama (il s'exécute par défaut sur le port `11434`).
-3. Téléchargez le modèle de vision de votre choix via votre terminal :
+3. Téléchargez le modèle via votre terminal :
    ```bash
-   ollama pull llama3-vision
+   ollama pull gemma2
    ```
 
 ### 14.3 Adaptation du code backend
@@ -784,9 +784,9 @@ Pour rediriger les requêtes vers votre instance locale d'Ollama, modifiez le fi
 ```typescript
 // Remplacement dans app/api/verify-certificate/route.ts
 
-// Payload pour Ollama Vision API
+// Payload pour Ollama API
 const ollamaPayload = {
-  model: "llama3-vision", // Modèle local installé
+  model: "gemma2", // Modèle local gemma2 installé
   messages: [
     {
       role: "user",
