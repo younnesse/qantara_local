@@ -22,7 +22,7 @@ flowchart LR
         style RightActors fill:none,stroke:none
         Admin["👮 Admin"]
         DiditAPI["☁️ Didit IDV API"]
-        LayoutLMAPI["🤖 LayoutLMv3 API"]
+        FastAPIServer["🐍 FastAPI Server<br>(LayoutLMv3 & Pyzbar)"]
     end
 
     %% System Boundary
@@ -55,7 +55,7 @@ flowchart LR
 
     %% External System Connections
     UC_Identity <--> DiditAPI
-    UC_Professional <--> LayoutLMAPI
+    UC_Professional <--> FastAPIServer
 
     %% Use Case Relationships
     UC_Identity -.->|"<<include>>"| UC_Reg
@@ -91,24 +91,36 @@ classDiagram
         +String password
         +String phoneNumber
         +Boolean emailVerified
-        +String agreementStatus // DB: certificateStatus
+        +String certificateStatus
         +String identityStatus
-        +String agreementMessage // DB: certificateMessage
+        +String certificateMessage
+        +String certificateIdHash
         +String extractedFullName
+        +String extractedDate
         +String idCardImage
         +String selfieImage
-        +String agreementImage // DB: certificateImage
-        +String verifiedName // DB: yotiName
+        +String certificateImage
+        +String certificateId
+        +String yotiName // verifiedName
         +DateTime verificationSubmittedAt
+        +Boolean aiFaceMatch
+        +Boolean aiNameMatch
+        +String aiAnalysisMessage
         +String professionalCategoryId
         +String regulatoryBodyId
         +String licenseNumber
+        +String licenseDocumentUrl
+        +DateTime licenseVerifiedAt
         +String licenseStatus
         +String tradeId
         +String cnamCardNumber
+        +String cnamCardDocumentUrl
+        +DateTime cnamCardVerifiedAt
         +String cnamCardStatus
         +String autoEntrepreneurActivityId
         +String anaeCardNumber
+        +String anaeCardDocumentUrl
+        +DateTime anaeCardVerifiedAt
         +String anaeCardStatus
         +Service[] services
     }
@@ -225,7 +237,7 @@ sequenceDiagram
     Didit-->>BE: 200 OK (status: "In Review")
     
     note over BE: Grace period kicks in: backend does not fail
-    BE->>DB: Update Provider (identityStatus="PENDING", verifiedName=diditSessionId)
+    BE->>DB: Update Provider (identityStatus="PENDING", yotiName=diditSessionId)
     BE-->>FE: 200 OK (success=true, identityStatus="PENDING")
     FE->>FE: Render disabled "Verification in Review..." button
 
@@ -234,23 +246,23 @@ sequenceDiagram
     Provider->>FE: Visits Profile Page
     FE->>BE: GET /api/providers/{providerId}
     
-    note over BE: Backend detects identityStatus="PENDING" & verifiedName contains Session ID
+    note over BE: Backend detects identityStatus="PENDING" & yotiName contains Session ID
     BE->>Didit: GET /v3/session/{sessionId}/decision/
     Didit-->>BE: 200 OK (status: "Approved", first_name, last_name, front_image, portrait_image)
     
     BE->>Didit: Download front_image & portrait_image files
     Didit-->>BE: Returns binary files
     BE->>BE: Write files to public/uploads/
-    BE->>DB: Update Provider (identityStatus="APPROVED", verifiedName="First Last", idCardImage, selfieImage)
+    BE->>DB: Update Provider (identityStatus="APPROVED", yotiName="First Last", idCardImage, selfieImage)
     BE-->>FE: 200 OK (provider record updated)
     FE->>FE: Render green "Verified" Badge
 ```
 
 ---
 
-### B. Professional Agreement Verification Flow (FastAPI + LayoutLMv3)
+### B. Professional Agreement / Card Verification Flow (FastAPI + LayoutLMv3 / Pyzbar)
 
-This sequence maps how professional agreement credentials are AI-verified and cross-matched against the Didit-verified name.
+This sequence maps how professional credentials are AI-verified (using local model or QR code decoding) and cross-matched against the Didit-verified name.
 
 ```mermaid
 sequenceDiagram
@@ -258,37 +270,44 @@ sequenceDiagram
     actor Provider as 👤 Provider
     participant FE as 📱 Next.js Frontend
     participant BE as 🖥️ Next.js Backend
-    participant PyServer as 🐍 LayoutLMv3 FastAPI Server (Port 8000)
-    participant Model as 🤖 LayoutLMv3 Model
-    participant ModelDB as 💾 Agreements DB (agreements.db)
+    participant PyServer as 🐍 Python FastAPI Server (Port 8000)
+    participant Model as 🤖 LayoutLMv3 Model (Regulated)
+    participant Pyzbar as 🔍 pyzbar QR Decoder (Artisan/Auto-Ent)
+    participant ModelDB as 💾 Agreements DB (certificates.db)
     participant AppDB as 💾 App Database (Prisma)
 
-    Provider->>FE: Upload Agreement (e.g. Programmers, Doctors)
+    Provider->>FE: Upload Professional Card / Agreement
     FE->>BE: POST /api/provider/verify-professional (image file)
     
-    %% Call AI Server
-    BE->>PyServer: POST /verify-agreement (form-data image)
-    PyServer->>PyServer: cv2 BGR2RGB image processing
-    PyServer->>Model: Run inference
-    Model-->>PyServer: Token Classifications (FULL_NAME, ID, DATE)
-    PyServer->>PyServer: Clean strings
-    
-    %% Secure matching
-    PyServer->>ModelDB: Query valid_agreements table (name & id)
-    ModelDB-->>PyServer: Matches row (returns True/False)
-    PyServer-->>BE: 200 OK (status: success, extracted_data, is_valid)
+    alt Category is Artisan or Auto-Entrepreneur (QR Path)
+        BE->>PyServer: POST /verify-card-qr (form-data image)
+        PyServer->>PyServer: cv2 image processing (Grayscale + Gaussian Blur + Adaptive Threshold)
+        PyServer->>Pyzbar: Locate and decode QR code
+        Pyzbar-->>PyServer: Returns decoded text (Name/ID)
+        PyServer->>PyServer: Parse and clean name & ID
+        PyServer-->>BE: 200 OK (status: success, extracted_data)
+    else Category is Regulated Profession (LayoutLMv3 Path)
+        BE->>PyServer: POST /verify-certificate (form-data image)
+        PyServer->>PyServer: cv2 BGR2RGB image processing
+        PyServer->>Model: Run token classification
+        Model-->>PyServer: Returns tokens (FULL_NAME, ID, DATE)
+        PyServer->>PyServer: Clean extracted text
+        PyServer->>ModelDB: Query valid_certificates table (name & id)
+        ModelDB-->>PyServer: Returns validation status (True/False)
+        PyServer-->>BE: 200 OK (status: success, extracted_data, is_valid)
+    end
     
     %% Cross-Matching
-    note over BE: Compare extracted name with Didit-verified name (verifiedName)
-    BE->>BE: Calculate similarity index between extracted name & verifiedName
+    note over BE: Compare extracted name with Didit-verified name (yotiName)
+    BE->>BE: Check word inclusion between extracted name & yotiName (Min 2 matches)
     
-    alt Name matches and agreement is valid in secure database
-        BE->>AppDB: Update Provider (licenseStatus/cnamCardStatus/anaeCardStatus="VERIFIED", agreementStatus="VALID")
-        BE-->>FE: 200 OK (success: true, message: "Credentials verified")
-        FE->>FE: Display verified badges
-    else Name mismatch or agreement invalid
+    alt Name matches and verification is successful
+        BE->>AppDB: Update Provider (licenseStatus/cnamCardStatus/anaeCardStatus="VERIFIED", certificateStatus="PENDING")
+        BE-->>FE: 200 OK (success: true, message: "Credentials submitted and matched")
+        FE->>FE: Display success status & PENDING final review message
+    else Name mismatch or verification fails
         BE->>AppDB: Update Provider (licenseStatus/cnamCardStatus/anaeCardStatus="REJECTED")
-        BE-->>FE: 400 Bad Request (success: false, message: "Name mismatch or invalid agreement")
-        FE->>FE: Display rejected status & feedback message
+        BE-->>FE: 200 OK (success: true, names_match: false, message: "Name mismatch")
+        FE->>FE: Display rejection feedback
     end
 ```
