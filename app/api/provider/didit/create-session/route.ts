@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     const data = await res.json();
     return NextResponse.json({
       sessionId: data.session_id,
-      sessionUrl: data.session_url
+      sessionUrl: data.url
     });
 
   } catch (error: any) {

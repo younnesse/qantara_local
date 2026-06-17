@@ -451,23 +451,28 @@ export default function ProviderProfilePage() {
                 </div>
 
                 {dbProvider?.identityStatus !== "APPROVED" && (
-                  <Dialog open={isIdentityDialogOpen} onOpenChange={(open) => {
-                    setIsIdentityDialogOpen(open);
-                    if (open) {
-                      setIdentityMethod("yoti");
-                      setManualIdFile(null);
-                      setManualIdPreview(null);
-                      setManualSelfieFile(null);
-                      setManualSelfiePreview(null);
-                      setIdentityUploadResult(null);
-                      startDiditSession();
-                    }
-                  }}>
-                    <DialogTrigger asChild>
-                      <Button className="w-full font-semibold mt-2" variant="outline">
-                        {dbProvider?.identityStatus === "REJECTED" ? t("verify.resubmitBtn") : t("verify.identity.startBtn")}
-                      </Button>
-                    </DialogTrigger>
+                  dbProvider?.identityStatus === "PENDING" ? (
+                    <Button className="w-full font-semibold mt-2" variant="outline" disabled>
+                      {locale === "ar" ? "قيد المراجعة..." : locale === "fr" ? "En cours d'examen..." : "Verification in Review..."}
+                    </Button>
+                  ) : (
+                    <Dialog open={isIdentityDialogOpen} onOpenChange={(open) => {
+                      setIsIdentityDialogOpen(open);
+                      if (open) {
+                        setIdentityMethod("yoti");
+                        setManualIdFile(null);
+                        setManualIdPreview(null);
+                        setManualSelfieFile(null);
+                        setManualSelfiePreview(null);
+                        setIdentityUploadResult(null);
+                        startDiditSession();
+                      }
+                    }}>
+                      <DialogTrigger asChild>
+                        <Button className="w-full font-semibold mt-2" variant="outline">
+                          {dbProvider?.identityStatus === "REJECTED" ? t("verify.resubmitBtn") : t("verify.identity.startBtn")}
+                        </Button>
+                      </DialogTrigger>
                     <DialogContent className="sm:max-w-md bg-card border-border max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle className="text-xl font-bold flex items-center gap-1.5 text-foreground">
@@ -621,6 +626,7 @@ export default function ProviderProfilePage() {
                       </div>
                     </DialogContent>
                   </Dialog>
+                  )
                 )}
               </div>
 
