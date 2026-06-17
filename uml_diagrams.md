@@ -311,3 +311,46 @@ sequenceDiagram
         FE->>FE: Display rejection feedback
     end
 ```
+
+---
+
+### C. Client Search, Contact, and Review Flow
+
+This sequence maps how a consumer/client searches for providers, retrieves contact information to call them out of band, and leaves a rating and review afterward.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as 👤 Client
+    participant FE as 📱 Next.js Frontend
+    participant BE as 🖥️ Next.js Backend
+    participant DB as 💾 Database (Prisma)
+
+    %% Search and Browse
+    Client->>FE: Open Search Page & Apply Filters (Category, Wilaya)
+    FE->>BE: GET /api/providers?category=...&location=...
+    BE->>DB: Query Providers (matching filter criteria)
+    DB-->>BE: Returns matching providers list
+    BE-->>FE: 200 OK (providers array)
+    FE->>FE: Render search result cards
+
+    %% View and Call
+    Client->>FE: Click on Provider Card
+    FE->>BE: GET /api/providers/{id}
+    BE->>DB: Query Provider details, reviews & average rating
+    DB-->>BE: Returns provider record
+    BE-->>FE: 200 OK (provider details)
+    FE->>FE: Render provider profile page view
+
+    Client->>FE: Click "Get Phone Number"
+    FE->>FE: Display provider phone number & trigger dial prompt
+    Client->>Client: Dial & Call provider via cellular carrier (out of band)
+
+    %% Leave Review
+    Client->>FE: Submit Rating and Comment Review
+    FE->>BE: POST /api/reviews {rating, comment, providerId}
+    BE->>DB: Create Review record & recalculate Provider average rating
+    DB-->>BE: Database transaction successful
+    BE-->>FE: 201 Created (success=true)
+    FE->>FE: Render new rating, review count, and feedback alert
+```
