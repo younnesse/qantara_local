@@ -86,6 +86,7 @@ classDiagram
         +DateTime deletedAt
         +Boolean isBanned
         +Review[] reviews
+        +Favorite[] favorites
     }
 
     class Provider {
@@ -127,6 +128,7 @@ classDiagram
         +DateTime anaeCardVerifiedAt
         +String anaeCardStatus
         +Service[] services
+        +Favorite[] favoritedBy
     }
 
     class Service {
@@ -191,6 +193,15 @@ classDiagram
         +Provider[] providers
     }
 
+    class Favorite {
+        +String id
+        +DateTime createdAt
+        +String clientId
+        +Client client
+        +String providerId
+        +Provider provider
+    }
+
     %% Relations
     Client "1" --> "0..*" Review : writes
     Service "1" --> "0..*" Review : receives
@@ -202,6 +213,8 @@ classDiagram
     ProfessionalCategory "1" --> "0..*" RegulatoryBody : defines
     ProfessionalCategory "1" --> "0..*" Trade : defines
     ProfessionalCategory "1" --> "0..*" AutoEntrepreneurActivity : defines
+    Client "1" --> "0..*" Favorite : saves
+    Favorite "0..*" --> "1" Provider : targets
 ```
 
 ---
