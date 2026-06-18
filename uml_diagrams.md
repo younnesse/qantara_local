@@ -36,7 +36,6 @@ flowchart LR
         UC_Review(["Leave Reviews & Comments"])
         UC_Favorite(["Add Provider to Favorites"])
         UC_Manage(["Moderate Providers & System"])
-        UC_Telegram(["Send Admin Telegram Alerts"])
     end
 
     %% Connections (Left Actors)
@@ -53,7 +52,6 @@ flowchart LR
 
     %% Connections (Right Actors)
     UC_Manage --- Admin
-    UC_Telegram --- Admin
 
     %% External System Connections
     UC_Identity <--> DiditAPI
