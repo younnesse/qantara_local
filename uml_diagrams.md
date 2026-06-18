@@ -371,3 +371,69 @@ sequenceDiagram
     BE-->>FE: 201 Created (success=true)
     FE->>FE: Render new rating, review count, and feedback alert
 ```
+
+---
+
+## 4. System Architecture Diagram
+
+This diagram maps Qantara's multi-layered system architecture, from frontend data acquisition to storage, verification APIs, and the backend AI inference engine.
+
+```mermaid
+flowchart TD
+    %% Define Styles
+    classDef layerStyle fill:#f5f7fa,stroke:#b0c4de,stroke-width:2px,color:#333,stroke-dasharray: 5 5;
+    classDef actorStyle fill:#e6f3ff,stroke:#4a90e2,stroke-width:2px;
+    classDef uiStyle fill:#fff0f6,stroke:#ff7875,stroke-width:2px;
+    classDef apiStyle fill:#f6ffed,stroke:#52c41a,stroke-width:2px;
+    classDef dbStyle fill:#fff7e6,stroke:#ffa940,stroke-width:2px;
+    classDef aiStyle fill:#f9f0ff,stroke:#9254de,stroke-width:2px;
+
+    subgraph Layer_Acquisition ["1. Data Acquisition & User Interaction (Presentation Layer)"]
+        Client["👤 Client / Consumer"]:::actorStyle
+        Provider["👤 Service Provider"]:::actorStyle
+        UI["📱 Next.js Frontend UI<br>(Web Browser)"]:::uiStyle
+        
+        Client -->|1. Browses / Reviews / Calls| UI
+        Provider -->|1. Registers / Uploads Credentials| UI
+    end
+    
+    subgraph Layer_Orchestration ["2. Data Modeling & Gateway (Backend Layer)"]
+        BE["🖥️ Next.js Backend (Node.js API Routes)"]:::apiStyle
+        PrismaClient["🔄 Prisma ORM Client"]:::apiStyle
+        UI <-->|2. JSON API Requests & File Uploads| BE
+        BE <--> PrismaClient
+    end
+
+    subgraph Layer_Storage ["3. Data Storage & Repositories (Storage Layer)"]
+        DB[("💾 Database<br>(PostgreSQL / SQLite)")]:::dbStyle
+        Uploads["📁 File System Storage<br>(public/uploads/ - ID cards, selfies, certificates)"]:::dbStyle
+        PrismaClient <-->|3. Reads/Writes Records| DB
+        BE -->|3. Saves Uploaded Media| Uploads
+    end
+
+    subgraph Layer_Analysis ["4. Data Analysis & AI Inference (Processing Layer)"]
+        subgraph FastAPI ["🐍 Python FastAPI Server (AI Service)"]
+            CV["🖼️ OpenCV Preprocessor<br>(Gaussian Blur, Thresholding)"]:::aiStyle
+            LM3["🤖 LayoutLMv3 Token Classifier<br>(Regulated Certificates)"]:::aiStyle
+            QR["🔍 Pyzbar QR Decoder<br>(Artisan / Auto-Entrepreneur)"]:::aiStyle
+        end
+        
+        Didit["☁️ Didit Identity API<br>(External IDV)"]:::aiStyle
+        Matcher["⚖️ Name Cross-Matching Logic<br>(Min 2 Words Match Verification)"]:::aiStyle
+
+        BE <-->|4a. Didit OAuth Session ID| Didit
+        BE <-->|4b. POST /verify-certificate | FastAPI
+        FastAPI --> CV
+        CV --> LM3
+        CV --> QR
+        
+        BE -->|4c. Compares Didit Name vs AI-Extracted Name| Matcher
+    end
+
+    %% Apply Classes to Layers
+    style Layer_Acquisition fill:#fcfdff,stroke:#4a90e2,stroke-width:1.5px
+    style Layer_Orchestration fill:#fafdf6,stroke:#52c41a,stroke-width:1.5px
+    style Layer_Storage fill:#fffcf6,stroke:#ffa940,stroke-width:1.5px
+    style Layer_Analysis fill:#faf8fe,stroke:#9254de,stroke-width:1.5px
+```
+
