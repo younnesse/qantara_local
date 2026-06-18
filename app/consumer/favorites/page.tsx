@@ -18,14 +18,13 @@ export default function FavoritesPage() {
     async function fetchProviders() {
       setLoading(true)
       try {
-        const res = await fetch("/api/providers")
+        const res = await fetch("/api/provider/favorite")
         if (res.ok) {
           const data = await res.json()
-          // Favorites are not stored in DB yet
-          setSavedProviders([])
+          setSavedProviders(data)
         }
       } catch (err) {
-        console.error("Failed to fetch providers:", err)
+        console.error("Failed to fetch favorites:", err)
       } finally {
         setLoading(false)
       }

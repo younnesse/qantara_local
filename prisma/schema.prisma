@@ -21,6 +21,7 @@ model Client {
   isBanned           Boolean   @default(false)
   
   reviews            Review[]
+  favorites          Favorite[]
 }
 
 model Provider {
@@ -100,6 +101,7 @@ model Provider {
 
   // Relations
   services           Service[]
+  favoritedBy        Favorite[]
 }
 
 model Admin {
@@ -234,4 +236,17 @@ model AutoEntrepreneurActivity {
   updatedAt   DateTime @updatedAt
 
   providers Provider[]
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+
+  clientId   String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, providerId])
 }

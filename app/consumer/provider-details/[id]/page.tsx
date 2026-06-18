@@ -32,6 +32,54 @@ export default function ProviderDetailsPage() {
   const router = useRouter()
   const { user } = useAuth()
   const [isLiked, setIsLiked] = useState(false)
+
+  useEffect(() => {
+    async function checkIsLiked() {
+      if (user && user.role === "consumer") {
+        try {
+          const res = await fetch(`/api/provider/favorite?providerId=${params.id}`)
+          if (res.ok) {
+            const data = await res.json()
+            setIsLiked(data.isLiked)
+          }
+        } catch (err) {
+          console.error("Failed to check if provider is liked:", err)
+        }
+      }
+    }
+    checkIsLiked()
+  }, [params.id, user])
+
+  const handleLikeToggle = async () => {
+    if (!user) {
+      router.push("/login")
+      return
+    }
+    if (user.role !== "consumer") {
+      return
+    }
+    
+    const previousState = isLiked
+    setIsLiked(!isLiked)
+    
+    try {
+      const res = await fetch("/api/provider/favorite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: params.id }),
+      })
+      if (!res.ok) {
+        setIsLiked(previousState)
+      } else {
+        const data = await res.json()
+        setIsLiked(data.isLiked)
+      }
+    } catch (err) {
+      console.error("Failed to toggle favorite:", err)
+      setIsLiked(previousState)
+    }
+  }
+
   const [provider, setProvider] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [reviews, setReviews] = useState<any[]>([])
@@ -206,7 +254,7 @@ export default function ProviderDetailsPage() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setIsLiked(!isLiked)}
+                onClick={handleLikeToggle}
                 className="h-11 w-11 rounded-lg border-border hover:bg-muted"
                 aria-label="Save provider"
               >
