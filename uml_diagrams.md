@@ -33,7 +33,8 @@ flowchart LR
         UC_Professional(["Verify Professional Credentials"])
         UC_Search(["Search & Browse Providers"])
         UC_Call(["Get Phone Number & Call Provider"])
-        UC_Review(["Leave Reviews"])
+        UC_Review(["Leave Reviews & Comments"])
+        UC_Favorite(["Add Provider to Favorites"])
         UC_Manage(["Moderate Providers & System"])
         UC_Telegram(["Send Admin Telegram Alerts"])
     end
@@ -48,6 +49,7 @@ flowchart LR
     Client --- UC_Search
     Client --- UC_Call
     Client --- UC_Review
+    Client --- UC_Favorite
 
     %% Connections (Right Actors)
     UC_Manage --- Admin
@@ -60,6 +62,10 @@ flowchart LR
     %% Use Case Relationships
     UC_Identity -.->|"<<include>>"| UC_Reg
     UC_Professional -.->|"<<include>>"| UC_Reg
+    UC_Profile -.->|"<<include>>"| UC_Reg
+    UC_Call -.->|"<<include>>"| UC_Reg
+    UC_Review -.->|"<<include>>"| UC_Reg
+    UC_Favorite -.->|"<<include>>"| UC_Reg
 ```
 
 ---
